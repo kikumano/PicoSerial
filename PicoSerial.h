@@ -43,10 +43,12 @@ perl -MPod::Markdown -e 'Pod::Markdown->new->filter(@ARGV)' PicoSerial.h > READM
 
 const uint16_t MIN_2X_BAUD = F_CPU/(4*(2*0XFFF + 1)) + 1;
 
+// Gets called when a new bytes has arrived over serial
+//#define PICOSERIAL_ISR_READFUNC(c)  rxfunc(c)
+
 class PicoSerial : public Print {
  public:
   using Print::write;
-    void (*user_callback_function)(int)=0; // Gets called when a new bytes has arrived over serial
 /*
 =head2 FUNCTIONS
 
@@ -56,10 +58,9 @@ class PicoSerial : public Print {
     uint32_t begin(BAUD,rxCallBackFunction);		// Sets baud rate, and lets you tell PicoSerial which of your functions you want to call when data is ready. Returns baudrate
 =cut
 */
-  uint32_t begin(uint32_t baud, void (*rxUserISR)(int) ) {	// Do not call this function if you use another serial library.
+  uint32_t begin(uint32_t baud) {	// Do not call this function if you use another serial library.
     uint16_t baud_setting;
     uint32_t ret;
-    user_callback_function=rxUserISR;
     cli();                      // disable all interrupts
     // don't worry, the compiler will squeeze out F_CPU != 16000000UL
     if ((F_CPU != 16000000UL || baud != 57600) && baud > MIN_2X_BAUD) {
@@ -122,7 +123,9 @@ class PicoSerial : public Print {
 
 ISR(USART_RX_vect) {
   int c=UDR0; // must read, to clear the interrupt flag
-  if(PicoSerial.user_callback_function!=0) PicoSerial.user_callback_function(c);
+#if defined(PICOSERIAL_ISR_READFUNC)
+  PICOSERIAL_ISR_READFUNC(c);
+#endif
 }
 
 #endif  // defined(UDR0) || defined(DOXYGEN)
