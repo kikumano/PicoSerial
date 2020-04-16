@@ -125,7 +125,7 @@ ISR(USART_RX_vect) {
   if(PicoSerial.user_callback_function!=0) PicoSerial.user_callback_function(c);
 }
 
-#endif defined(UDR0) || defined(DOXYGEN)
+#endif  // defined(UDR0) || defined(DOXYGEN)
 #endif  // PicoSerial_h
 
 
