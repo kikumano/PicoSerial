@@ -74,22 +74,19 @@ class PicoSerial : public Print {
     uint32_t begin(BAUD,rxCallBackFunction);		// Sets baud rate, and lets you tell PicoSerial which of your functions you want to call when data is ready. Returns baudrate
 =cut
 */
-  uint32_t begin(uint32_t baud) {	// Do not call this function if you use another serial library.
+  void begin(uint32_t baud) {  // Do not call this function if you use another serial library.
     uint16_t baud_setting;
-    uint32_t ret;
     cli();                      // disable all interrupts
     // don't worry, the compiler will squeeze out F_CPU != 16000000UL
     if ((F_CPU != 16000000UL || baud != 57600) && baud > MIN_2X_BAUD) {
       UCSRnA = 1 << U2Xn; // Double the USART Transmission Speed
       baud_setting = (F_CPU / 4 / baud - 1) / 2;
-      ret=baud_setting;ret=F_CPU/(8*(ret+1));
     } else {
       // hardcoded exception for compatibility with the bootloader shipped
       // with the Duemilanove and previous boards and the firmware on the 8U2
       // on the Uno and Mega 2560.
       UCSRnA = 0;
       baud_setting = (F_CPU / 8 / baud - 1) / 2;
-      ret=baud_setting;ret=F_CPU/(8*(ret+1));
     }
     // assign the baud_setting
     UBRRnH = baud_setting >> 8;
@@ -97,8 +94,14 @@ class PicoSerial : public Print {
     // enable transmit and receive
     UCSRnB |= (1 << TXENn) | (1 << RXENn) | (1 << RXCIEn);
     sei();                      // enable all interrupts
-    return ret; // Tell caller the BAUD they really got
-  }    
+  }
+
+  uint32_t calc_realbaudrate(uint32_t baud) {
+    const bool f = ((F_CPU != 16000000UL || baud != 57600) && baud > MIN_2X_BAUD);
+    const uint32_t ret = (F_CPU / (f? 4: 8) / baud - 1) / 2;
+
+    return F_CPU/(8*(ret+1)); // Tell caller the BAUD they really got
+  }
 
 /*
 =pod
