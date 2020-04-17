@@ -39,7 +39,23 @@ perl -MPod::Markdown -e 'Pod::Markdown->new->filter(@ARGV)' PicoSerial.h > READM
 
 */
 
-#if defined(UDR0) || defined(DOXYGEN)
+#if defined(UBRR0H) || defined(DOXYGEN)
+
+#if defined(UBRR0H)
+//#warning UBRR0H -> UBRRnH
+#define UBRRnH    UBRR0H
+#define UBRRnL    UBRR0L
+#define UCSRnA    UCSR0A
+  #define RXCn      RXC0
+  #define UDREn     UDRE0
+  #define U2Xn      U2X0
+#define UCSRnB    UCSR0B
+  #define RXCIEn    RXCIE0
+  #define UDRIEn    UDRIE0
+  #define RXENn     RXEN0
+  #define TXENn     TXEN0
+#define UDRn      UDR0
+#endif
 
 const uint16_t MIN_2X_BAUD = F_CPU/(4*(2*0XFFF + 1)) + 1;
 
@@ -64,22 +80,22 @@ class PicoSerial : public Print {
     cli();                      // disable all interrupts
     // don't worry, the compiler will squeeze out F_CPU != 16000000UL
     if ((F_CPU != 16000000UL || baud != 57600) && baud > MIN_2X_BAUD) {
-      UCSR0A = 1 << U2X0; // Double the USART Transmission Speed
+      UCSRnA = 1 << U2Xn; // Double the USART Transmission Speed
       baud_setting = (F_CPU / 4 / baud - 1) / 2;
       ret=baud_setting;ret=F_CPU/(8*(ret+1));
     } else {
       // hardcoded exception for compatibility with the bootloader shipped
       // with the Duemilanove and previous boards and the firmware on the 8U2
       // on the Uno and Mega 2560.
-      UCSR0A = 0;
+      UCSRnA = 0;
       baud_setting = (F_CPU / 8 / baud - 1) / 2;
       ret=baud_setting;ret=F_CPU/(8*(ret+1));
     }
     // assign the baud_setting
-    UBRR0H = baud_setting >> 8;
-    UBRR0L = baud_setting;
+    UBRRnH = baud_setting >> 8;
+    UBRRnL = baud_setting;
     // enable transmit and receive
-    UCSR0B |= (1 << TXEN0) | (1 << RXEN0) | (1 << RXCIE0);
+    UCSRnB |= (1 << TXENn) | (1 << RXENn) | (1 << RXCIEn);
     sei();                      // enable all interrupts
     return ret; // Tell caller the BAUD they really got
   }    
@@ -91,8 +107,8 @@ class PicoSerial : public Print {
 =cut
 */
   int read() {
-    if (UCSR0A & (1 << RXC0)) {
-      return UDR0;
+    if (UCSRnA & (1 << RXCn)) {
+      return UDRn;
     }
     return -1;
   } // read
@@ -104,8 +120,8 @@ class PicoSerial : public Print {
 =cut
 */
   size_t write(uint8_t b) {
-    while (((1 << UDRIE0) & UCSR0B) || !(UCSR0A & (1 << UDRE0))) {}
-    UDR0 = b;
+    while (((1 << UDRIEn) & UCSRnB) || !(UCSRnA & (1 << UDREn))) {}
+    UDRn = b;
     return 1;
   } // write
 
@@ -116,19 +132,19 @@ class PicoSerial : public Print {
 =cut
 */
   boolean canWrite() {
-    return ! (((1 << UDRIE0) & UCSR0B) || !(UCSR0A & (1 << UDRE0)));
+    return ! (((1 << UDRIEn) & UCSRnB) || !(UCSRnA & (1 << UDREn)));
   } // write
 
 } PicoSerial; // PicoSerial
 
 ISR(USART_RX_vect) {
-  int c=UDR0; // must read, to clear the interrupt flag
+  int c=UDRn; // must read, to clear the interrupt flag
 #if defined(PICOSERIAL_ISR_READFUNC)
   PICOSERIAL_ISR_READFUNC(c);
 #endif
 }
 
-#endif  // defined(UDR0) || defined(DOXYGEN)
+#endif  // defined(UDRn) || defined(DOXYGEN)
 #endif  // PicoSerial_h
 
 
