@@ -39,22 +39,142 @@ perl -MPod::Markdown -e 'Pod::Markdown->new->filter(@ARGV)' PicoSerial.h > READM
 
 */
 
-#if defined(UBRR0H) || defined(DOXYGEN)
+#if ( defined(UBRRH) || defined(UBRR0H) || defined(LINBRRH) \
+  || defined(UBRR1H) || defined(UBRR2H) || defined(UBRR3H) || defined(DOXYGEN) ) && !DISABLE_UART
 
-#if defined(UBRR0H)
-//#warning UBRR0H -> UBRRnH
-#define UBRRnH    UBRR0H
-#define UBRRnL    UBRR0L
-#define UCSRnA    UCSR0A
-  #define RXCn      RXC0
-  #define UDREn     UDRE0
-  #define U2Xn      U2X0
-#define UCSRnB    UCSR0B
-  #define RXCIEn    RXCIE0
-  #define UDRIEn    UDRIE0
-  #define RXENn     RXEN0
-  #define TXENn     TXEN0
-#define UDRn      UDR0
+#if defined(PICOSERIAL_USE_HWSERIAL3)
+  #ifdef USART3_RX_vect
+//  #warning USART3_RX_vect -> USARTn_RX_vect
+  #define USARTn_RX_vect   USART3_RX_vect
+  #else
+  #error "no fourth serial"
+  #endif
+  
+  #if defined(UBRR3H)
+//  #warning UBRR3H -> UBRRnH
+  #define UBRRnH    UBRR3H
+  #define UBRRnL    UBRR3L
+  #define UCSRnA    UCSR3A
+    #define RXCn      RXC3
+    #define UDREn     UDRE3
+    #define U2Xn      U2X3
+  #define UCSRnB    UCSR3B
+    #define RXCIEn    RXCIE3
+    #define UDRIEn    UDRIE3
+    #define RXENn     RXEN3
+    #define TXENn     TXEN3
+  #define UDRn      UDR3
+  #endif
+#elif defined(PICOSERIAL_USE_HWSERIAL2)
+  #ifdef USART2_RX_vect
+//  #warning USART2_RX_vect -> USARTn_RX_vect
+  #define USARTn_RX_vect   USART2_RX_vect
+  #else
+  #error "no third serial"
+  #endif
+  
+  #if defined(UBRR2H)
+//  #warning UBRR2H -> UBRRnH
+  #define UBRRnH    UBRR2H
+  #define UBRRnL    UBRR2L
+  #define UCSRnA    UCSR2A
+    #define RXCn      RXC2
+    #define UDREn     UDRE2
+    #define U2Xn      U2X2
+  #define UCSRnB    UCSR2B
+    #define RXCIEn    RXCIE2
+    #define UDRIEn    UDRIE2
+    #define RXENn     RXEN2
+    #define TXENn     TXEN2
+  #define UDRn      UDR2
+  #endif
+#elif defined(PICOSERIAL_USE_HWSERIAL1)
+  #ifdef USART1_RX_vect
+//  #warning USART1_RX_vect -> USARTn_RX_vect
+  #define USARTn_RX_vect   USART1_RX_vect
+  #elif defined(USART1_RXC_vect)
+//  #warning USART1_RXC_vect -> USARTn_RX_vect
+  #define USARTn_RX_vect   USART1_RXC_vect
+  #else
+  #error "no second serial"
+  #endif
+  
+  #if defined(UBRR1H)
+//  #warning UBRR1H -> UBRRnH
+  #define UBRRnH    UBRR1H
+  #define UBRRnL    UBRR1L
+  #define UCSRnA    UCSR1A
+    #define RXCn      RXC1
+    #define UDREn     UDRE1
+    #define U2Xn      U2X1
+  #define UCSRnB    UCSR1B
+    #define RXCIEn    RXCIE1
+    #define UDRIEn    UDRIE1
+    #define RXENn     RXEN1
+    #define TXENn     TXEN1
+  #define UDRn      UDR1
+  #endif
+#else
+  #if defined(USART_RX_vect)
+//  #warning USART_RX_vect -> USARTn_RX_vect
+  #define USARTn_RX_vect   USART_RX_vect
+  #elif defined(USART0_RX_vect)
+//  #warning USART0_RX_vect -> USARTn_RX_vect
+  #define USARTn_RX_vect   USART0_RX_vect
+  #elif defined(UART_RX_vect)
+//  #warning UART_RX_vect -> USARTn_RX_vect
+  #define USARTn_RX_vect   UART_RX_vect
+  #elif defined(UART0_RX_vect)
+//  #warning UART0_RX_vect -> USARTn_RX_vect
+  #define USARTn_RX_vect   UART0_RX_vect
+  #elif defined(LIN_TC_vect)
+//  #warning LIN_TC_vect -> USARTn_RX_vect
+// do nothing
+  #else
+  #error "no serial"
+  #endif
+
+  #if defined(UBRRH)
+//  #warning UBRRH -> UBRRnH
+  #define UBRRnH    UBRRH
+  #define UBRRnL    UBRRL
+  #define UCSRnA    UCSRA
+    #define RXCn      RXC
+    #define UDREn     UDRE
+    #define U2Xn      U2X
+  #define UCSRnB    UCSRB
+    #define RXCIEn    RXCIE
+    #define UDRIEn    UDRIE
+    #define RXENn     RXEN
+    #define TXENn     TXEN
+  #define UDRn      UDR
+  #elif defined(UBRR0H)
+//  #warning UBRR0H -> UBRRnH
+  #define UBRRnH    UBRR0H
+  #define UBRRnL    UBRR0L
+  #define UCSRnA    UCSR0A
+    #define RXCn      RXC0
+    #define UDREn     UDRE0
+    #define U2Xn      U2X0
+  #define UCSRnB    UCSR0B
+    #define RXCIEn    RXCIE0
+    #define UDRIEn    UDRIE0
+    #define RXENn     RXEN0
+    #define TXENn     TXEN0
+  #define UDRn      UDR0
+  #elif defined(LINDAT)
+//  #warning LINDAT -> UDRn
+  #define UCSRnA    LINSIR
+    #define RXCn      LRXOK
+    #define UDREn     LTXOK
+    #define U2Xn      // n/a
+  #define UCSRnB    LINENIR
+    #define RXCIEn    LENRXOK
+    #define UDRIEn    LENTXOK
+    #define RXENn     // n/a
+    #define TXENn     // n/a
+  #define UDRn      LINDAT
+  #endif
 #endif
 
 const uint16_t MIN_2X_BAUD = F_CPU/(4*(2*0XFFF + 1)) + 1;
@@ -75,6 +195,13 @@ class PicoSerial : public Print {
 =cut
 */
   void begin(uint32_t baud) {  // Do not call this function if you use another serial library.
+#ifdef LINENIR
+    LINCR = bit( LSWRES );
+    LINBRR = ( ( ( F_CPU * 10L / 16L / baud ) + 5L ) / 10L ) - 1;
+    LINBTR = bit( LDISR ) | ( 16 << LBT0 );
+    LINCR = bit( LENA ) | bit( LCMD2 ) | bit( LCMD1 ) | bit( LCMD0 );
+    bitSet( LINENIR, LENRXOK );
+#else
     uint16_t baud_setting;
     noInterrupts();                      // disable all interrupts
     // don't worry, the compiler will squeeze out F_CPU != 16000000UL
@@ -94,13 +221,19 @@ class PicoSerial : public Print {
     // enable transmit and receive
     UCSRnB |= bit(TXENn) | bit(RXENn) | bit(RXCIEn);
     interrupts();                      // enable all interrupts
+#endif
   }
 
   uint32_t calc_realbaudrate(uint32_t baud) {
+#ifdef LINENIR
+//xxx fixme
+    return baud; // Tell caller the BAUD they really got
+#else
     const bool f = ((F_CPU != 16000000UL || baud != 57600) && baud > MIN_2X_BAUD);
     const uint32_t ret = (F_CPU / (f? 4: 8) / baud - 1) / 2;
 
     return F_CPU/(8*(ret+1)); // Tell caller the BAUD they really got
+#endif
   }
 
 /*
@@ -137,12 +270,25 @@ class PicoSerial : public Print {
 
 } PicoSerial; // PicoSerial
 
-ISR(USART_RX_vect) {
+
+#ifdef LIN_TC_vect
+ISR(LIN_TC_vect) {
+#endif // LIN_TC_vect
+
+#ifdef LIN_TC_vect
+if( bitRead( LINSIR, LRXOK ) ){
+#else
+ISR(USARTn_RX_vect) {
+#endif // LIN_TC_vect
   int c=UDRn; // must read, to clear the interrupt flag
 #if defined(PICOSERIAL_ISR_READFUNC)
   PICOSERIAL_ISR_READFUNC(c);
 #endif
 }
+
+#ifdef LIN_TC_vect
+}
+#endif // LIN_TC_vect
 
 #endif  // defined(UDRn) || defined(DOXYGEN)
 #endif  // PicoSerial_h
