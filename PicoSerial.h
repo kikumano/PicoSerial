@@ -46,6 +46,7 @@ perl -MPod::Markdown -e 'Pod::Markdown->new->filter(@ARGV)' PicoSerial.h > READM
   #ifdef USART3_RX_vect
 //  #warning USART3_RX_vect -> USARTn_RX_vect
   #define USARTn_RX_vect   USART3_RX_vect
+  #define USARTn_UDRE_vect USART3_UDRE_vect
   #else
   #error "no fourth serial"
   #endif
@@ -69,6 +70,7 @@ perl -MPod::Markdown -e 'Pod::Markdown->new->filter(@ARGV)' PicoSerial.h > READM
   #ifdef USART2_RX_vect
 //  #warning USART2_RX_vect -> USARTn_RX_vect
   #define USARTn_RX_vect   USART2_RX_vect
+  #define USARTn_UDRE_vect USART2_UDRE_vect
   #else
   #error "no third serial"
   #endif
@@ -92,9 +94,11 @@ perl -MPod::Markdown -e 'Pod::Markdown->new->filter(@ARGV)' PicoSerial.h > READM
   #ifdef USART1_RX_vect
 //  #warning USART1_RX_vect -> USARTn_RX_vect
   #define USARTn_RX_vect   USART1_RX_vect
+  #define USARTn_UDRE_vect USART1_UDRE_vect
   #elif defined(USART1_RXC_vect)
 //  #warning USART1_RXC_vect -> USARTn_RX_vect
   #define USARTn_RX_vect   USART1_RXC_vect
+  #define USARTn_UDRE_vect USART1_UDRE_vect
   #else
   #error "no second serial"
   #endif
@@ -118,15 +122,19 @@ perl -MPod::Markdown -e 'Pod::Markdown->new->filter(@ARGV)' PicoSerial.h > READM
   #if defined(USART_RX_vect)
 //  #warning USART_RX_vect -> USARTn_RX_vect
   #define USARTn_RX_vect   USART_RX_vect
+  #define USARTn_UDRE_vect USART_UDRE_vect
   #elif defined(USART0_RX_vect)
 //  #warning USART0_RX_vect -> USARTn_RX_vect
   #define USARTn_RX_vect   USART0_RX_vect
+  #define USARTn_UDRE_vect USART0_UDRE_vect
   #elif defined(UART_RX_vect)
 //  #warning UART_RX_vect -> USARTn_RX_vect
   #define USARTn_RX_vect   UART_RX_vect
+  #define USARTn_UDRE_vect UART_UDRE_vect
   #elif defined(UART0_RX_vect)
 //  #warning UART0_RX_vect -> USARTn_RX_vect
   #define USARTn_RX_vect   UART0_RX_vect
+  #define USARTn_UDRE_vect UART0_UDRE_vect
   #elif defined(LIN_TC_vect)
 //  #warning LIN_TC_vect -> USARTn_RX_vect
 // do nothing
@@ -177,10 +185,42 @@ perl -MPod::Markdown -e 'Pod::Markdown->new->filter(@ARGV)' PicoSerial.h > READM
   #endif
 #endif
 
+
+#ifndef PICOSERIAL_BUFF_SIZE
+//max 0x80(128) bytes
+#define PICOSERIAL_BUFF_SIZE      8
+#endif
+#ifndef PICOSERIAL_READBUFF_SIZE
+#define PICOSERIAL_READBUFF_SIZE      PICOSERIAL_BUFF_SIZE
+#endif
+#ifndef PICOSERIAL_WRITEBUFF_SIZE
+#define PICOSERIAL_WRITEBUFF_SIZE     PICOSERIAL_BUFF_SIZE
+#endif
+
+#define PICOSERIAL_BUFFFULL_BIT   7
+#if ( PICOSERIAL_READBUFF_SIZE > 0x80 ) || ( PICOSERIAL_WRITEBUFF_SIZE > 0x80 )
+  #error "large buffer is not supported. must be 128 or less."
+#endif
+
+#ifdef PICOSERIAL_USE_READBUFF
+volatile byte PicoSerial_buff_rx[PICOSERIAL_READBUFF_SIZE];
+volatile byte buff_rx_in = 0;
+volatile byte buff_rx_out = 0;
+#endif
+#ifdef PICOSERIAL_USE_WRITEBUFF
+volatile byte PicoSerial_buff_tx[PICOSERIAL_WRITEBUFF_SIZE];
+volatile byte buff_tx_in = 0;
+volatile byte buff_tx_out = 0;
+#endif
+
+
 const uint16_t MIN_2X_BAUD = F_CPU/(4*(2*0XFFF + 1)) + 1;
 
 // Gets called when a new bytes has arrived over serial
 //#define PICOSERIAL_ISR_READFUNC(c)  rxfunc(c)
+
+// Gets called when read() method invoked
+//#define PICOSERIAL_CB_READFUNC()    cbfunc()
 
 class PicoSerial : public Print {
  public:
@@ -243,7 +283,25 @@ class PicoSerial : public Print {
 =cut
 */
   int read() {
+#ifdef PICOSERIAL_USE_READBUFF
+  if( buff_rx_in == buff_rx_out ){
+    return -1;
+  }
+
+  //disable rx intr
+  bitClear( UCSRnB, RXCIEn );
+  const byte re = PicoSerial_buff_rx[buff_rx_out++];
+  buff_rx_out %= sizeof PicoSerial_buff_rx;
+  bitClear( buff_rx_in, PICOSERIAL_BUFFFULL_BIT );
+  //enable rx intr
+  bitSet( UCSRnB, RXCIEn );
+
+  return (unsigned int)re;
+#elif defined(PICOSERIAL_ISR_READFUNC)
+    return PICOSERIAL_CB_READFUNC();
+#else
     return bitRead(UCSRnA, RXCn)? (unsigned int)UDRn: -1;
+#endif
   } // read
 
 /*
@@ -253,8 +311,31 @@ class PicoSerial : public Print {
 =cut
 */
   size_t write(uint8_t b) {
+#ifdef PICOSERIAL_USE_WRITEBUFF
+  if( !bitRead( UCSRnB, UDRIEn ) ){
+    UDRn = b;
+    bitSet( UCSRnB, UDRIEn );
+    return 1;
+  }
+  
+  for( ; ; ){
+    if( !bitRead( buff_tx_in, PICOSERIAL_BUFFFULL_BIT ) ){
+      //disable tx intr
+      bitClear( UCSRnB, UDRIEn );
+      
+      PicoSerial_buff_tx[buff_tx_in++] = b;
+      buff_tx_in %= sizeof PicoSerial_buff_tx;
+      if( buff_tx_in == buff_tx_out ){ bitSet( buff_tx_in, PICOSERIAL_BUFFFULL_BIT ); }
+      
+      //enable tx intr
+      bitSet( UCSRnB, UDRIEn );
+      break;
+    }
+  }
+#else
     while (bitRead(UCSRnB, UDRIEn) || !bitRead(UCSRnA, UDREn)) {}
     UDRn = b;
+#endif
     return 1;
   } // write
 
@@ -265,29 +346,69 @@ class PicoSerial : public Print {
 =cut
 */
   boolean canWrite() {
+#ifdef PICOSERIAL_USE_WRITEBUFF
+    return !bitRead( buff_tx_in, PICOSERIAL_BUFFFULL_BIT );
+#else
     return !(bitRead(UCSRnB, UDRIEn) || !bitRead(UCSRnA, UDREn));
+#endif
   } // write
 
 } PicoSerial; // PicoSerial
 
 
 #ifdef LIN_TC_vect
+#if defined(PICOSERIAL_USE_READBUFF) || defined(PICOSERIAL_ISR_READFUNC) || defined(PICOSERIAL_USE_WRITEBUFF)
 ISR(LIN_TC_vect) {
+#endif
 #endif // LIN_TC_vect
 
+#if defined(PICOSERIAL_USE_READBUFF) || defined(PICOSERIAL_ISR_READFUNC)
 #ifdef LIN_TC_vect
 if( bitRead( LINSIR, LRXOK ) ){
 #else
 ISR(USARTn_RX_vect) {
 #endif // LIN_TC_vect
-  int c=UDRn; // must read, to clear the interrupt flag
-#if defined(PICOSERIAL_ISR_READFUNC)
+  const byte c=UDRn; // must read, to clear the interrupt flag
+
+#ifdef PICOSERIAL_USE_READBUFF
+  if( !bitRead( buff_rx_in, PICOSERIAL_BUFFFULL_BIT ) ){
+    PicoSerial_buff_rx[buff_rx_in++] = c;
+    buff_rx_in %= sizeof PicoSerial_buff_rx;
+    if( buff_rx_in == buff_rx_out ){ bitSet( buff_rx_in, PICOSERIAL_BUFFFULL_BIT ); }
+//  } else {
+    //buffer overflow
+  }
+#elif defined(PICOSERIAL_ISR_READFUNC)
   PICOSERIAL_ISR_READFUNC(c);
 #endif
 }
+#endif // defined(PICOSERIAL_USE_READBUFF) || defined(PICOSERIAL_ISR_READFUNC)
+
+#ifdef PICOSERIAL_USE_WRITEBUFF
+#ifdef LIN_TC_vect
+if( bitRead( LINSIR, LTXOK ) ){
+#else
+ISR(USARTn_UDRE_vect) {
+#endif // LIN_TC_vect
+  if( buff_tx_in == buff_tx_out ){
+    //buffer empty
+    //disable tx intr
+    bitClear( UCSRnB, UDRIEn );
+    return;
+  }
+
+  const byte b = PicoSerial_buff_tx[buff_tx_out++];
+  buff_tx_out %= sizeof PicoSerial_buff_tx;
+  bitClear( buff_tx_in, PICOSERIAL_BUFFFULL_BIT );
+  
+  UDRn = b;
+}
+#endif // PICOSERIAL_USE_WRITEBUFF
 
 #ifdef LIN_TC_vect
+#if defined(PICOSERIAL_USE_READBUFF) || defined(PICOSERIAL_ISR_READFUNC) || defined(PICOSERIAL_USE_WRITEBUFF)
 }
+#endif
 #endif // LIN_TC_vect
 
 #endif  // defined(UDRn) || defined(DOXYGEN)
