@@ -76,10 +76,10 @@ class PicoSerial : public Print {
 */
   void begin(uint32_t baud) {  // Do not call this function if you use another serial library.
     uint16_t baud_setting;
-    cli();                      // disable all interrupts
+    noInterrupts();                      // disable all interrupts
     // don't worry, the compiler will squeeze out F_CPU != 16000000UL
     if ((F_CPU != 16000000UL || baud != 57600) && baud > MIN_2X_BAUD) {
-      UCSRnA = 1 << U2Xn; // Double the USART Transmission Speed
+      UCSRnA = bit(U2Xn); // Double the USART Transmission Speed
       baud_setting = (F_CPU / 4 / baud - 1) / 2;
     } else {
       // hardcoded exception for compatibility with the bootloader shipped
@@ -89,11 +89,11 @@ class PicoSerial : public Print {
       baud_setting = (F_CPU / 8 / baud - 1) / 2;
     }
     // assign the baud_setting
-    UBRRnH = baud_setting >> 8;
-    UBRRnL = baud_setting;
+    UBRRnH = highByte( baud_setting );
+    UBRRnL = lowByte( baud_setting );
     // enable transmit and receive
-    UCSRnB |= (1 << TXENn) | (1 << RXENn) | (1 << RXCIEn);
-    sei();                      // enable all interrupts
+    UCSRnB |= bit(TXENn) | bit(RXENn) | bit(RXCIEn);
+    interrupts();                      // enable all interrupts
   }
 
   uint32_t calc_realbaudrate(uint32_t baud) {
@@ -110,10 +110,7 @@ class PicoSerial : public Print {
 =cut
 */
   int read() {
-    if (UCSRnA & (1 << RXCn)) {
-      return UDRn;
-    }
-    return -1;
+    return bitRead(UCSRnA, RXCn)? (unsigned int)UDRn: -1;
   } // read
 
 /*
@@ -123,7 +120,7 @@ class PicoSerial : public Print {
 =cut
 */
   size_t write(uint8_t b) {
-    while (((1 << UDRIEn) & UCSRnB) || !(UCSRnA & (1 << UDREn))) {}
+    while (bitRead(UCSRnB, UDRIEn) || !bitRead(UCSRnA, UDREn)) {}
     UDRn = b;
     return 1;
   } // write
@@ -135,7 +132,7 @@ class PicoSerial : public Print {
 =cut
 */
   boolean canWrite() {
-    return ! (((1 << UDRIEn) & UCSRnB) || !(UCSRnA & (1 << UDREn)));
+    return !(bitRead(UCSRnB, UDRIEn) || !bitRead(UCSRnA, UDREn));
   } // write
 
 } PicoSerial; // PicoSerial
